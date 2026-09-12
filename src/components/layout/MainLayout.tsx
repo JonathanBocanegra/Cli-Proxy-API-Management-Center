@@ -29,6 +29,7 @@ import {
   IconSidebarQuota,
   IconSidebarStore,
   IconSidebarSystem,
+  IconSidebarHost,
   IconChevronDown,
 } from '@/components/ui/icons';
 import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
@@ -65,6 +66,7 @@ const sidebarIcons: Record<string, ReactNode> = {
   config: <IconSidebarConfig size={18} />,
   logs: <IconSidebarLogs size={18} />,
   system: <IconSidebarSystem size={18} />,
+  host: <IconSidebarHost size={18} />,
 };
 
 interface SidebarNavLinkItem {
@@ -640,6 +642,12 @@ export function MainLayout() {
       id: 'observe',
       labelKey: 'nav_groups.observe',
       items: [
+        {
+          path: '/host',
+          labelKey: 'nav.host_monitor',
+          metaKey: 'nav_meta.host_monitor',
+          icon: sidebarIcons.host,
+        },
         {
           path: '/quota',
           labelKey: 'nav.quota_management',

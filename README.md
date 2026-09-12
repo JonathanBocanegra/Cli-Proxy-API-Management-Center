@@ -4,7 +4,7 @@ A single-file Web UI (React + TypeScript) for operating and troubleshooting the 
 
 [中文文档](README_CN.md)
 
-**Main Project**: https://github.com/router-for-me/CLIProxyAPI   
+**Main Project**: https://github.com/router-for-me/CLIProxyAPI
 **Minimum Required Version**: ≥ 7.2.147 (recommended latest)
 
 Since version 6.0.19, the Web UI ships with the main program; access it via `/management.html` on the API port once the service is running.
@@ -21,6 +21,11 @@ APIMart is a low-cost API platform for AI image & video generation — GPT-Image
 
 - This repository is the Web UI only. It talks to the CLI Proxy API **Management API** (`/v0/management`) to read/update config, upload credentials, and view logs.
 - It is **not** a proxy and does not forward traffic.
+
+This fork also includes an optional **Host Monitor** for the WSL machine running CLI Proxy API. A
+loopback-only companion agent supplies live CPU, memory, swap, load, storage, disk I/O, network,
+process, and core-service telemetry. See [`host-agent/README.md`](host-agent/README.md) for the
+installation and Tailscale Serve setup.
 
 ## Quick start
 
@@ -81,6 +86,7 @@ Check the CLI Proxy API server documentation/config comments for the full authen
 ## What you can manage (mapped to the UI pages)
 
 - **Dashboard**: connection status, server version/build date, quick counts, model availability snapshot.
+- **Host Monitor**: live WSL health, resource pressure, disk and network throughput, mounted storage, core services, and top processes (requires the optional host agent in this fork).
 - **Config Panel**: visual editor for common `config.yaml` fields, basic settings, proxy `api-keys`, and source editing with YAML highlighting/search plus a save diff preview.
 - **AI Providers**:
   - Gemini/Codex/Claude/Vertex key entries (base URL, headers, proxy, model aliases, excluded models, prefix).
