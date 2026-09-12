@@ -19,8 +19,8 @@ APIMart is a low-cost API platform for AI image & video generation — GPT-Image
 
 ## What this is (and isn’t)
 
-- This repository is the Web UI only. It talks to the CLI Proxy API **Management API** (`/v0/management`) to read/update config, upload credentials, and view logs.
-- It is **not** a proxy and does not forward traffic.
+- The management center is primarily a Web UI. It talks to the CLI Proxy API **Management API** (`/v0/management`) to read/update config, upload credentials, and view logs.
+- This fork also carries an optional read-only host telemetry agent. Neither component proxies model traffic.
 
 This fork also includes an optional **Host Monitor** for the WSL machine running CLI Proxy API. A
 loopback-only companion agent supplies live CPU, memory, swap, load, storage, disk I/O, network,
