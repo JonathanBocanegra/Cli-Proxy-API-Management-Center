@@ -19,3 +19,5 @@ export function formatUptime(seconds: number): string {
 export const formatPercent = (value: number): string => `${Math.round(value)}%`;
 
 export const formatLoad = (value: number): string => value.toFixed(value >= 10 ? 1 : 2);
+
+export const formatTemperature = (value: number): string => `${Math.round(value)} °C`;

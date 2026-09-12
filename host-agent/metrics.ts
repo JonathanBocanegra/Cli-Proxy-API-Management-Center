@@ -17,6 +17,7 @@ import type {
   HostSnapshot,
   HostStorageMount,
 } from '../src/features/host/types';
+import { readWindowsThermals, unavailableThermalMetrics } from './windowsThermals';
 
 const execFileAsync = promisify(execFile);
 const KIBIBYTE = 1024;
@@ -24,6 +25,7 @@ const SECTOR_BYTES = 512;
 const PAGE_BYTES = 4096;
 const SERVICE_CACHE_MS = 15_000;
 const STATIC_CACHE_MS = 60_000;
+const THERMAL_CACHE_MS = 10_000;
 const EXCLUDED_BLOCK_PREFIXES = ['loop', 'ram', 'zram', 'fd', 'sr'];
 
 export interface CpuCounters {
@@ -270,6 +272,7 @@ export function classifyHostHealth(input: {
   storage: HostStorageMount[];
   processes: Pick<HostProcessMetrics, 'zombies'>;
   logicalCores: number;
+  thermal?: Pick<HostSnapshot['thermal'], 'status'>;
 }): { status: HostHealthStatus; issues: HostHealthIssue[] } {
   const critical = new Set<HostHealthIssue>();
   const attention = new Set<HostHealthIssue>();
@@ -289,6 +292,9 @@ export function classifyHostHealth(input: {
   const highestStorageUsage = Math.max(0, ...input.storage.map((mount) => mount.usagePercent));
   if (highestStorageUsage >= 95) critical.add('storage');
   else if (highestStorageUsage >= 85) attention.add('storage');
+
+  if (input.thermal?.status === 'critical') critical.add('temperature');
+  else if (input.thermal?.status === 'attention') attention.add('temperature');
 
   if (input.processes.zombies > 0) attention.add('zombies');
 
@@ -494,6 +500,8 @@ export class HostSampler {
   private staticInfoAt = 0;
   private services: HostService[] = [];
   private servicesAt = 0;
+  private thermal = unavailableThermalMetrics();
+  private thermalAt = 0;
 
   async sample(): Promise<HostSnapshot> {
     const sampleAt = Date.now();
@@ -516,6 +524,19 @@ export class HostSampler {
     if (this.services.length === 0 || sampleAt - this.servicesAt >= SERVICE_CACHE_MS) {
       this.services = await readServices();
       this.servicesAt = sampleAt;
+    }
+    if (sampleAt - this.thermalAt >= THERMAL_CACHE_MS) {
+      try {
+        const nextThermal = await readWindowsThermals();
+        this.thermal = nextThermal.available
+          ? nextThermal
+          : this.thermal.available
+            ? { ...this.thermal, stale: true }
+            : nextThermal;
+      } catch {
+        if (this.thermal.available) this.thermal = { ...this.thermal, stale: true };
+      }
+      this.thermalAt = sampleAt;
     }
 
     const currentCpu = parseCpuCounters(procStat);
@@ -546,6 +567,7 @@ export class HostSampler {
       storage,
       processes: processResult.metrics,
       logicalCores: this.staticInfo.logicalCores,
+      thermal: this.thermal,
     });
 
     this.previousCpu = currentCpu;
@@ -563,12 +585,13 @@ export class HostSampler {
         hostname: hostname(),
         ...this.staticInfo,
         uptimeSeconds: Number(uptime.split(/\s+/)[0]) || 0,
-        temperatureCelsius: await readTemperature(),
+        temperatureCelsius: this.thermal.hottestCelsius ?? (await readTemperature()),
       },
       cpu,
       memory,
       diskIo,
       network,
+      thermal: this.thermal,
       storage,
       processes: processResult.metrics,
       services: this.services,

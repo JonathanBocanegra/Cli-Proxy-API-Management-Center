@@ -223,6 +223,209 @@
   }
 }
 
+.thermalOverview {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.65fr) minmax(0, 2fr);
+  gap: $spacing-md;
+
+  @media (max-width: 820px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.thermalHeadline,
+.thermalCard {
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg-primary) 86%, transparent);
+}
+
+.thermalHeadline {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: clamp($spacing-lg, 3vw, 32px);
+  overflow: hidden;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 170px;
+    height: 170px;
+    right: -70px;
+    bottom: -90px;
+    border-radius: 50%;
+    background: var(--viz-success);
+    filter: blur(42px);
+    opacity: 0.14;
+  }
+
+  &[data-tone='attention']::after {
+    background: var(--amber-color);
+    opacity: 0.22;
+  }
+
+  &[data-tone='critical']::after {
+    background: var(--viz-failure);
+    opacity: 0.24;
+  }
+
+  > span {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  > strong {
+    font-family: $font-mono;
+    font-size: clamp(42px, 5vw, 62px);
+    line-height: 1;
+    letter-spacing: -0.055em;
+    color: var(--text-primary);
+  }
+
+  > small {
+    color: var(--text-secondary);
+  }
+}
+
+.thermalGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: $spacing-sm;
+}
+
+.thermalCard {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: $spacing-md;
+
+  > strong {
+    font-family: $font-mono;
+    font-size: 27px;
+    letter-spacing: -0.035em;
+    color: var(--text-primary);
+  }
+
+  > small {
+    overflow: hidden;
+    color: var(--text-tertiary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.thermalCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-sm;
+
+  span {
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--text-secondary);
+  }
+
+  i {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--viz-success);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--viz-success) 10%, transparent);
+  }
+}
+
+.thermalCard[data-tone='attention'] .thermalCardHead i {
+  background: var(--amber-color);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber-color) 12%, transparent);
+}
+
+.thermalCard[data-tone='critical'] .thermalCardHead i {
+  background: var(--viz-failure);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--viz-failure) 12%, transparent);
+}
+
+.temperatureMeter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: $radius-full;
+  background: var(--border-color);
+
+  span {
+    display: block;
+    width: var(--temperature-value);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      var(--viz-success),
+      var(--amber-color) 76%,
+      var(--viz-failure)
+    );
+    transition: width 360ms var(--ease-out-strong);
+  }
+}
+
+.thermalMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.thermalAlert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px $spacing-md;
+  padding: 13px 16px;
+  border: 1px solid var(--warning-border);
+  border-radius: 12px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+
+  &[data-tone='critical'] {
+    border-color: color-mix(in srgb, var(--viz-failure) 35%, var(--border-color));
+    background: color-mix(in srgb, var(--viz-failure) 8%, var(--bg-primary));
+    color: var(--viz-failure);
+  }
+
+  strong {
+    font-size: 13px;
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
+.thermalChartPanel {
+  gap: $spacing-md;
+}
+
+.thermalStale {
+  color: var(--warning-text) !important;
+}
+
+.thermalUnavailable {
+  padding: $spacing-lg;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  color: var(--text-secondary);
+}
+
 .statCard,
 .panel {
   border: 1px solid var(--border-color);

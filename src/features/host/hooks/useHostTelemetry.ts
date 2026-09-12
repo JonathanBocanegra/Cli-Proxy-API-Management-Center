@@ -14,6 +14,7 @@ export interface HostHistoryPoint {
   diskWrite: number;
   networkReceive: number;
   networkTransmit: number;
+  temperatures: Record<string, number>;
 }
 
 export function useHostTelemetry() {
@@ -48,6 +49,9 @@ export function useHostTelemetry() {
             diskWrite: next.diskIo.writeBytesPerSecond,
             networkReceive: next.network.receiveBytesPerSecond,
             networkTransmit: next.network.transmitBytesPerSecond,
+            temperatures: Object.fromEntries(
+              next.thermal.sensors.map((sensor) => [sensor.id, sensor.valueCelsius])
+            ),
           },
         ].slice(-HISTORY_LIMIT);
       });

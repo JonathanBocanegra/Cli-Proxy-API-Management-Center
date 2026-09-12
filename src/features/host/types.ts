@@ -1,6 +1,34 @@
 export type HostHealthStatus = 'healthy' | 'attention' | 'critical';
 
-export type HostHealthIssue = 'cpu' | 'load' | 'memory' | 'swap' | 'storage' | 'zombies';
+export type HostHealthIssue =
+  'cpu' | 'load' | 'memory' | 'swap' | 'storage' | 'temperature' | 'zombies';
+
+export type HostThermalStatus = HostHealthStatus | 'unavailable';
+
+export interface HostTemperatureSensor {
+  id: string;
+  component: 'cpu' | 'gpu' | 'mainboard';
+  deviceName: string;
+  valueCelsius: number;
+  minimumCelsius: number;
+  maximumCelsius: number;
+  warningCelsius: number;
+  criticalCelsius: number;
+  status: HostHealthStatus;
+  peakStatus: HostHealthStatus;
+}
+
+export interface HostThermalMetrics {
+  available: boolean;
+  stale: boolean;
+  sampledAt: string | null;
+  source: string | null;
+  status: HostThermalStatus;
+  peakStatus: HostThermalStatus;
+  hottestCelsius: number | null;
+  peakCelsius: number | null;
+  sensors: HostTemperatureSensor[];
+}
 
 export interface HostIdentity {
   hostname: string;
@@ -98,6 +126,7 @@ export interface HostSnapshot {
   memory: HostMemoryMetrics;
   diskIo: HostDiskIoMetrics;
   network: HostNetworkMetrics;
+  thermal: HostThermalMetrics;
   storage: HostStorageMount[];
   processes: HostProcessMetrics;
   services: HostService[];

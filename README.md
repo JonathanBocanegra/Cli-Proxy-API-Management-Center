@@ -24,7 +24,7 @@ APIMart is a low-cost API platform for AI image & video generation — GPT-Image
 
 This fork also includes an optional **Host Monitor** for the WSL machine running CLI Proxy API. A
 loopback-only companion agent supplies live CPU, memory, swap, load, storage, disk I/O, network,
-process, and core-service telemetry. See [`host-agent/README.md`](host-agent/README.md) for the
+temperature, process, and core-service telemetry. See [`host-agent/README.md`](host-agent/README.md) for the
 installation and Tailscale Serve setup.
 
 ## Quick start
@@ -86,7 +86,7 @@ Check the CLI Proxy API server documentation/config comments for the full authen
 ## What you can manage (mapped to the UI pages)
 
 - **Dashboard**: connection status, server version/build date, quick counts, model availability snapshot.
-- **Host Monitor**: live WSL health, resource pressure, disk and network throughput, mounted storage, core services, and top processes (requires the optional host agent in this fork).
+- **Host Monitor**: live WSL health, CPU/GPU temperatures, resource pressure, disk and network throughput, mounted storage, core services, and top processes (requires the optional host agent in this fork).
 - **Config Panel**: visual editor for common `config.yaml` fields, basic settings, proxy `api-keys`, and source editing with YAML highlighting/search plus a save diff preview.
 - **AI Providers**:
   - Gemini/Codex/Claude/Vertex key entries (base URL, headers, proxy, model aliases, excluded models, prefix).

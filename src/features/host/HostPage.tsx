@@ -5,7 +5,7 @@ import { IconRefreshCw } from '@/components/ui/icons';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useRevealGroup, useRevealOnScroll } from '@/hooks/motion';
 import { TelemetryChart } from './components/TelemetryChart';
-import { formatBytes, formatLoad, formatPercent, formatUptime } from './format';
+import { formatBytes, formatLoad, formatPercent, formatTemperature, formatUptime } from './format';
 import { useHostTelemetry } from './hooks/useHostTelemetry';
 import type { HostHealthIssue, HostHealthStatus, HostProcess } from './types';
 import styles from './HostPage.module.scss';
@@ -15,6 +15,14 @@ const STATUS_COLORS: Record<HostHealthStatus, string> = {
   attention: 'var(--amber-color)',
   critical: 'var(--viz-failure)',
 };
+
+const THERMAL_COLORS = [
+  'var(--host-accent)',
+  'var(--amber-color)',
+  'var(--viz-success)',
+  'var(--host-violet)',
+  'var(--text-secondary)',
+];
 
 const DASH = '—';
 
@@ -68,6 +76,7 @@ export function HostPage() {
   useHeaderRefresh(refresh, true);
   const heroRef = useRevealGroup<HTMLElement>();
   const statsRef = useRevealGroup<HTMLElement>(0.1);
+  const thermalRef = useRevealOnScroll<HTMLElement>();
   const ioRef = useRevealOnScroll<HTMLElement>();
   const detailsRef = useRevealGroup<HTMLElement>();
 
@@ -122,6 +131,17 @@ export function HostPage() {
       },
     ],
     [history, t]
+  );
+  const thermalSeries = useMemo(
+    () =>
+      (snapshot?.thermal.sensors ?? []).map((sensor, index) => ({
+        label: t(`host.sensor_${sensor.id.replace(/-/g, '_')}`),
+        color: THERMAL_COLORS[index % THERMAL_COLORS.length],
+        values: history
+          .map((point) => point.temperatures[sensor.id])
+          .filter((value): value is number => Number.isFinite(value)),
+      })),
+    [history, snapshot?.thermal.sensors, t]
   );
 
   if (!snapshot && !loading) {
@@ -236,6 +256,112 @@ export function HostPage() {
           </div>
           <small>{t('host.load_windows')}</small>
         </article>
+      </section>
+
+      <section className={styles.section} ref={thermalRef}>
+        <header className={styles.sectionHead}>
+          <span className={styles.eyebrow}>{t('host.thermal_eyebrow')}</span>
+          <h2>{t('host.thermal_title')}</h2>
+          <p>{t('host.thermal_description')}</p>
+        </header>
+
+        {snapshot?.thermal.available ? (
+          <>
+            <div className={styles.thermalOverview}>
+              <article className={styles.thermalHeadline} data-tone={snapshot.thermal.status}>
+                <span>{t('host.current_hottest')}</span>
+                <strong>{formatTemperature(snapshot.thermal.hottestCelsius ?? 0)}</strong>
+                <small>
+                  {t(`host.thermal_status_${snapshot.thermal.status}`)} · {snapshot.thermal.source}
+                </small>
+              </article>
+              <div className={styles.thermalGrid}>
+                {snapshot.thermal.sensors.map((sensor) => {
+                  const label = t(`host.sensor_${sensor.id.replace(/-/g, '_')}`);
+                  return (
+                    <article
+                      className={styles.thermalCard}
+                      data-tone={sensor.status}
+                      key={sensor.id}
+                    >
+                      <div className={styles.thermalCardHead}>
+                        <span>{label}</span>
+                        <i />
+                      </div>
+                      <strong>{formatTemperature(sensor.valueCelsius)}</strong>
+                      <div
+                        className={styles.temperatureMeter}
+                        role="progressbar"
+                        aria-label={label}
+                        aria-valuemin={0}
+                        aria-valuemax={sensor.criticalCelsius}
+                        aria-valuenow={sensor.valueCelsius}
+                        style={
+                          {
+                            '--temperature-value': `${Math.min(
+                              100,
+                              (sensor.valueCelsius / sensor.criticalCelsius) * 100
+                            )}%`,
+                          } as React.CSSProperties
+                        }
+                      >
+                        <span />
+                      </div>
+                      <div className={styles.thermalMeta}>
+                        <span>
+                          {t('host.observed_peak', {
+                            value: formatTemperature(sensor.maximumCelsius),
+                          })}
+                        </span>
+                        <span>
+                          {t('host.warning_at', {
+                            value: formatTemperature(sensor.warningCelsius),
+                          })}
+                        </span>
+                      </div>
+                      <small title={sensor.deviceName}>{sensor.deviceName}</small>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+
+            {snapshot.thermal.peakStatus !== 'healthy' ? (
+              <div className={styles.thermalAlert} data-tone={snapshot.thermal.peakStatus}>
+                <strong>
+                  {t(`host.thermal_peak_${snapshot.thermal.peakStatus}`, {
+                    value: formatTemperature(snapshot.thermal.peakCelsius ?? 0),
+                  })}
+                </strong>
+                <span>{t('host.thermal_peak_detail')}</span>
+              </div>
+            ) : null}
+
+            <article className={`${styles.panel} ${styles.thermalChartPanel}`}>
+              <div className={styles.panelHead}>
+                <div>
+                  <span>{t('host.temperatures')}</span>
+                  <h3>{t('host.current_temperature_history')}</h3>
+                </div>
+                {snapshot.thermal.stale ? (
+                  <small className={styles.thermalStale}>{t('host.thermal_stale')}</small>
+                ) : (
+                  <div className={styles.livePill}>
+                    <i />
+                    {t('host.live')}
+                  </div>
+                )}
+              </div>
+              <TelemetryChart
+                series={thermalSeries}
+                ariaLabel={t('host.thermal_chart')}
+                maxValue={110}
+              />
+            </article>
+          </>
+        ) : (
+          <div className={styles.thermalUnavailable}>{t('host.thermal_unavailable')}</div>
+        )}
       </section>
 
       <section className={styles.section} ref={ioRef}>
@@ -421,7 +547,7 @@ export function HostPage() {
         <span>
           <b>{t('host.temperature')}</b>
           {snapshot?.host.temperatureCelsius
-            ? `${snapshot.host.temperatureCelsius.toFixed(1)} °C`
+            ? formatTemperature(snapshot.host.temperatureCelsius)
             : t('host.not_exposed')}
         </span>
       </footer>

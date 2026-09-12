@@ -13,6 +13,8 @@ const isHostSnapshot = (value: unknown): value is HostSnapshot => {
     typeof snapshot.host?.hostname === 'string' &&
     typeof snapshot.cpu?.usagePercent === 'number' &&
     typeof snapshot.memory?.usagePercent === 'number' &&
+    typeof snapshot.thermal?.available === 'boolean' &&
+    Array.isArray(snapshot.thermal?.sensors) &&
     Array.isArray(snapshot.storage) &&
     Array.isArray(snapshot.services)
   );

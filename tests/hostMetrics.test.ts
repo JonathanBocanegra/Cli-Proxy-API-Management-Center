@@ -9,6 +9,7 @@ import {
   parseMemoryMetrics,
   parseNetworkCounters,
 } from '../host-agent/metrics';
+import { buildThermalMetrics, parseCorsairThermalOutput } from '../host-agent/windowsThermals';
 
 describe('host metrics parsing', () => {
   test('derives CPU use and iowait from consecutive aggregate counters', () => {
@@ -110,5 +111,87 @@ describe('host health classification', () => {
 
     expect(result.status).toBe('critical');
     expect(result.issues).toEqual(['cpu', 'swap', 'zombies']);
+  });
+
+  test('promotes current thermal pressure into overall host health', () => {
+    const result = classifyHostHealth({
+      ...base,
+      thermal: { status: 'critical' },
+    });
+
+    expect(result).toEqual({ status: 'critical', issues: ['temperature'] });
+  });
+});
+
+describe('Windows thermal telemetry', () => {
+  test('selects meaningful hardware sensors and retains aggregate CPU peaks', () => {
+    const readings = parseCorsairThermalOutput(
+      JSON.stringify([
+        {
+          deviceName: 'Intel Core i7 8700K',
+          deviceClass: 4,
+          sensorName: 'Package',
+          valueCelsius: 82,
+          minimumCelsius: 32,
+          maximumCelsius: 100,
+        },
+        {
+          deviceName: 'Intel Core i7 8700K',
+          deviceClass: 4,
+          sensorName: 'Core #0',
+          valueCelsius: 84,
+          minimumCelsius: 31,
+          maximumCelsius: 96,
+        },
+        {
+          deviceName: 'Intel Core i7 8700K',
+          deviceClass: 4,
+          sensorName: 'Core #1',
+          valueCelsius: 87,
+          minimumCelsius: 30,
+          maximumCelsius: 99,
+        },
+        {
+          deviceName: 'NVIDIA GeForce GTX 1080',
+          deviceClass: 32,
+          sensorName: 'GPU',
+          valueCelsius: 38,
+          minimumCelsius: 30,
+          maximumCelsius: 70,
+        },
+        {
+          deviceName: 'ASUS mainboard',
+          deviceClass: 1024,
+          sensorName: 'Mainboard',
+          valueCelsius: 34,
+          minimumCelsius: 29,
+          maximumCelsius: 42,
+        },
+        {
+          deviceName: 'Bad sensor',
+          deviceClass: 4,
+          sensorName: 'Package',
+          valueCelsius: 999,
+          minimumCelsius: 20,
+          maximumCelsius: 999,
+        },
+      ])
+    );
+    const metrics = buildThermalMetrics(readings, '2026-09-12T00:00:00.000Z');
+
+    expect(metrics.sensors.map((sensor) => sensor.id)).toEqual([
+      'cpu-package',
+      'cpu-core-max',
+      'gpu-core',
+      'mainboard',
+    ]);
+    expect(metrics.hottestCelsius).toBe(87);
+    expect(metrics.sensors[1]).toMatchObject({
+      valueCelsius: 87,
+      minimumCelsius: 30,
+      maximumCelsius: 99,
+    });
+    expect(metrics.status).toBe('attention');
+    expect(metrics.peakStatus).toBe('critical');
   });
 });

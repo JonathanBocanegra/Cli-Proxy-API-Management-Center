@@ -10,6 +10,7 @@ interface TelemetrySeries {
 interface TelemetryChartProps {
   series: TelemetrySeries[];
   ariaLabel: string;
+  maxValue?: number;
 }
 
 const WIDTH = 640;
@@ -28,11 +29,12 @@ const linePath = (values: number[], max: number): string => {
     .join(' ');
 };
 
-export function TelemetryChart({ series, ariaLabel }: TelemetryChartProps) {
+export function TelemetryChart({ series, ariaLabel, maxValue }: TelemetryChartProps) {
   const patternID = useId();
   const max = useMemo(
-    () => Math.max(1, ...series.flatMap((entry) => entry.values.filter(Number.isFinite))),
-    [series]
+    () =>
+      maxValue ?? Math.max(1, ...series.flatMap((entry) => entry.values.filter(Number.isFinite))),
+    [maxValue, series]
   );
 
   return (
