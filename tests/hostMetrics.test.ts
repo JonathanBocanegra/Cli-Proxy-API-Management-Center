@@ -10,6 +10,23 @@ import {
   parseNetworkCounters,
 } from '../host-agent/metrics';
 import { buildThermalMetrics, parseCorsairThermalOutput } from '../host-agent/windowsThermals';
+import { rollingAverage } from '../src/features/host/rollingAverage';
+
+describe('host telemetry rolling average', () => {
+  test('uses a trailing window and keeps the warm-up points', () => {
+    expect(rollingAverage([10, 20, 30, 40, 50, 60], 5)).toEqual([10, 15, 20, 25, 30, 40]);
+  });
+
+  test('ignores invalid samples without breaking the chart series', () => {
+    expect(rollingAverage([10, Number.NaN, 30], 3)).toEqual([10, 10, 20]);
+    expect(rollingAverage([Number.NaN], 3)).toEqual([0]);
+  });
+
+  test('falls back to a one-sample window for invalid window sizes', () => {
+    expect(rollingAverage([10, 20], 0)).toEqual([10, 20]);
+    expect(rollingAverage([10, 20], Number.NaN)).toEqual([10, 20]);
+  });
+});
 
 describe('host metrics parsing', () => {
   test('derives CPU use and iowait from consecutive aggregate counters', () => {

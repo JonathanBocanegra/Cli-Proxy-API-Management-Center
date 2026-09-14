@@ -6,9 +6,14 @@ import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useRevealGroup, useRevealOnScroll } from '@/hooks/motion';
 import { TelemetryChart } from './components/TelemetryChart';
 import { formatBytes, formatLoad, formatPercent, formatTemperature, formatUptime } from './format';
-import { useHostTelemetry } from './hooks/useHostTelemetry';
+import { HOST_TELEMETRY_POLL_INTERVAL_MS, useHostTelemetry } from './hooks/useHostTelemetry';
+import { rollingAverage } from './rollingAverage';
 import type { HostHealthIssue, HostHealthStatus, HostProcess } from './types';
 import styles from './HostPage.module.scss';
+
+const ROLLING_AVERAGE_SAMPLE_COUNT = 5;
+const ROLLING_AVERAGE_SECONDS =
+  (HOST_TELEMETRY_POLL_INTERVAL_MS * ROLLING_AVERAGE_SAMPLE_COUNT) / 1_000;
 
 const STATUS_COLORS: Record<HostHealthStatus, string> = {
   healthy: 'var(--viz-success)',
@@ -102,44 +107,93 @@ export function HostPage() {
       }).format(new Date(snapshot.sampledAt))
     : DASH;
 
+  const averagedTelemetry = useMemo(
+    () => ({
+      cpu: rollingAverage(
+        history.map((point) => point.cpu),
+        ROLLING_AVERAGE_SAMPLE_COUNT
+      ),
+      diskRead: rollingAverage(
+        history.map((point) => point.diskRead),
+        ROLLING_AVERAGE_SAMPLE_COUNT
+      ),
+      diskWrite: rollingAverage(
+        history.map((point) => point.diskWrite),
+        ROLLING_AVERAGE_SAMPLE_COUNT
+      ),
+      networkReceive: rollingAverage(
+        history.map((point) => point.networkReceive),
+        ROLLING_AVERAGE_SAMPLE_COUNT
+      ),
+      networkTransmit: rollingAverage(
+        history.map((point) => point.networkTransmit),
+        ROLLING_AVERAGE_SAMPLE_COUNT
+      ),
+    }),
+    [history]
+  );
+  const latestAverage = (values: number[], fallback: number): number =>
+    values[values.length - 1] ?? fallback;
+  const averageLabel = t('host.rolling_average', { seconds: ROLLING_AVERAGE_SECONDS });
+  const cpuAverage = latestAverage(averagedTelemetry.cpu, snapshot?.cpu.usagePercent ?? 0);
+  const diskReadAverage = latestAverage(
+    averagedTelemetry.diskRead,
+    snapshot?.diskIo.readBytesPerSecond ?? 0
+  );
+  const diskWriteAverage = latestAverage(
+    averagedTelemetry.diskWrite,
+    snapshot?.diskIo.writeBytesPerSecond ?? 0
+  );
+  const networkReceiveAverage = latestAverage(
+    averagedTelemetry.networkReceive,
+    snapshot?.network.receiveBytesPerSecond ?? 0
+  );
+  const networkTransmitAverage = latestAverage(
+    averagedTelemetry.networkTransmit,
+    snapshot?.network.transmitBytesPerSecond ?? 0
+  );
+
   const diskSeries = useMemo(
     () => [
       {
         label: t('host.read'),
         color: 'var(--host-accent)',
-        values: history.map((point) => point.diskRead),
+        values: averagedTelemetry.diskRead,
       },
       {
         label: t('host.write'),
         color: 'var(--host-violet)',
-        values: history.map((point) => point.diskWrite),
+        values: averagedTelemetry.diskWrite,
       },
     ],
-    [history, t]
+    [averagedTelemetry.diskRead, averagedTelemetry.diskWrite, t]
   );
   const networkSeries = useMemo(
     () => [
       {
         label: t('host.receive'),
         color: 'var(--viz-success)',
-        values: history.map((point) => point.networkReceive),
+        values: averagedTelemetry.networkReceive,
       },
       {
         label: t('host.transmit'),
         color: 'var(--amber-color)',
-        values: history.map((point) => point.networkTransmit),
+        values: averagedTelemetry.networkTransmit,
       },
     ],
-    [history, t]
+    [averagedTelemetry.networkReceive, averagedTelemetry.networkTransmit, t]
   );
   const thermalSeries = useMemo(
     () =>
       (snapshot?.thermal.sensors ?? []).map((sensor, index) => ({
         label: t(`host.sensor_${sensor.id.replace(/-/g, '_')}`),
         color: THERMAL_COLORS[index % THERMAL_COLORS.length],
-        values: history
-          .map((point) => point.temperatures[sensor.id])
-          .filter((value): value is number => Number.isFinite(value)),
+        values: rollingAverage(
+          history
+            .map((point) => point.temperatures[sensor.id])
+            .filter((value): value is number => Number.isFinite(value)),
+          ROLLING_AVERAGE_SAMPLE_COUNT
+        ),
       })),
     [history, snapshot?.thermal.sensors, t]
   );
@@ -195,14 +249,14 @@ export function HostPage() {
             className={styles.dial}
             style={
               {
-                '--dial-value': `${snapshot?.cpu.usagePercent ?? 0}%`,
+                '--dial-value': `${cpuAverage}%`,
                 '--dial-color': healthColor,
               } as React.CSSProperties
             }
           >
             <div className={styles.dialInner}>
-              <strong>{snapshot ? formatPercent(snapshot.cpu.usagePercent) : DASH}</strong>
-              <span>{t('host.cpu_now')}</span>
+              <strong>{snapshot ? formatPercent(cpuAverage) : DASH}</strong>
+              <span>{averageLabel}</span>
             </div>
           </div>
           <div className={styles.dialFooter}>
@@ -348,13 +402,16 @@ export function HostPage() {
                 ) : (
                   <div className={styles.livePill}>
                     <i />
-                    {t('host.live')}
+                    {averageLabel}
                   </div>
                 )}
               </div>
               <TelemetryChart
                 series={thermalSeries}
-                ariaLabel={t('host.thermal_chart')}
+                ariaLabel={t('host.chart_rolling_average', {
+                  chart: t('host.thermal_chart'),
+                  seconds: ROLLING_AVERAGE_SECONDS,
+                })}
                 maxValue={110}
               />
             </article>
@@ -368,7 +425,7 @@ export function HostPage() {
         <header className={styles.sectionHead}>
           <span className={styles.eyebrow}>{t('host.io_eyebrow')}</span>
           <h2>{t('host.io_title')}</h2>
-          <p>{t('host.io_description')}</p>
+          <p>{t('host.io_description', { seconds: ROLLING_AVERAGE_SECONDS })}</p>
         </header>
         <div className={styles.ioGrid}>
           <article className={styles.panel}>
@@ -379,24 +436,26 @@ export function HostPage() {
               </div>
               <div className={styles.livePill}>
                 <i />
-                {t('host.live')}
+                {averageLabel}
               </div>
             </div>
             <div className={styles.dualFigures}>
               <div>
                 <span>{t('host.read')}</span>
-                <strong>
-                  {formatBytes(snapshot?.diskIo.readBytesPerSecond ?? 0, { rate: true })}
-                </strong>
+                <strong>{formatBytes(diskReadAverage, { rate: true })}</strong>
               </div>
               <div>
                 <span>{t('host.write')}</span>
-                <strong>
-                  {formatBytes(snapshot?.diskIo.writeBytesPerSecond ?? 0, { rate: true })}
-                </strong>
+                <strong>{formatBytes(diskWriteAverage, { rate: true })}</strong>
               </div>
             </div>
-            <TelemetryChart series={diskSeries} ariaLabel={t('host.disk_chart')} />
+            <TelemetryChart
+              series={diskSeries}
+              ariaLabel={t('host.chart_rolling_average', {
+                chart: t('host.disk_chart'),
+                seconds: ROLLING_AVERAGE_SECONDS,
+              })}
+            />
             <div className={styles.microStats}>
               <span>
                 {t('host.read_iops', { value: snapshot?.diskIo.readOperationsPerSecond ?? 0 })}
@@ -418,24 +477,26 @@ export function HostPage() {
               </div>
               <div className={styles.livePill}>
                 <i />
-                {t('host.live')}
+                {averageLabel}
               </div>
             </div>
             <div className={styles.dualFigures}>
               <div>
                 <span>{t('host.receive')}</span>
-                <strong>
-                  {formatBytes(snapshot?.network.receiveBytesPerSecond ?? 0, { rate: true })}
-                </strong>
+                <strong>{formatBytes(networkReceiveAverage, { rate: true })}</strong>
               </div>
               <div>
                 <span>{t('host.transmit')}</span>
-                <strong>
-                  {formatBytes(snapshot?.network.transmitBytesPerSecond ?? 0, { rate: true })}
-                </strong>
+                <strong>{formatBytes(networkTransmitAverage, { rate: true })}</strong>
               </div>
             </div>
-            <TelemetryChart series={networkSeries} ariaLabel={t('host.network_chart')} />
+            <TelemetryChart
+              series={networkSeries}
+              ariaLabel={t('host.chart_rolling_average', {
+                chart: t('host.network_chart'),
+                seconds: ROLLING_AVERAGE_SECONDS,
+              })}
+            />
             <div className={styles.interfaceList}>
               {(snapshot?.network.interfaces ?? []).map((entry) => (
                 <span key={entry.name}>
