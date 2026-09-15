@@ -479,7 +479,7 @@ async function readServices(): Promise<HostService[]> {
       scope: 'user' as const,
       unit: 'cliproxy-host-agent.service',
     },
-    { id: 't3-code', label: 'T3 Code', scope: 'user' as const, unit: 't3code-server.service' },
+    { id: 't3-code', label: 'T3 Code', scope: 'user' as const, unit: 't3code.service' },
     { id: 'tailscale', label: 'Tailscale', scope: 'system' as const, unit: 'tailscaled.service' },
   ];
   return Promise.all(
