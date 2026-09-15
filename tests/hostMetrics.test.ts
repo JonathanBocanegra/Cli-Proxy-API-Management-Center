@@ -9,7 +9,26 @@ import {
   parseMemoryMetrics,
   parseNetworkCounters,
 } from '../host-agent/metrics';
+import { buildLinuxThermalMetrics, parseNvidiaSmiOutput } from '../host-agent/linuxThermals';
+import { mergeThermalExtrema } from '../host-agent/thermalMetrics';
 import { buildThermalMetrics, parseCorsairThermalOutput } from '../host-agent/windowsThermals';
+import { rollingAverage } from '../src/features/host/rollingAverage';
+
+describe('host telemetry rolling average', () => {
+  test('uses a trailing window and keeps the warm-up points', () => {
+    expect(rollingAverage([10, 20, 30, 40, 50, 60], 5)).toEqual([10, 15, 20, 25, 30, 40]);
+  });
+
+  test('ignores invalid samples without breaking the chart series', () => {
+    expect(rollingAverage([10, Number.NaN, 30], 3)).toEqual([10, 10, 20]);
+    expect(rollingAverage([Number.NaN], 3)).toEqual([0]);
+  });
+
+  test('falls back to a one-sample window for invalid window sizes', () => {
+    expect(rollingAverage([10, 20], 0)).toEqual([10, 20]);
+    expect(rollingAverage([10, 20], Number.NaN)).toEqual([10, 20]);
+  });
+});
 
 describe('host metrics parsing', () => {
   test('derives CPU use and iowait from consecutive aggregate counters', () => {
@@ -193,5 +212,80 @@ describe('Windows thermal telemetry', () => {
     });
     expect(metrics.status).toBe('attention');
     expect(metrics.peakStatus).toBe('critical');
+  });
+});
+
+describe('Linux thermal telemetry', () => {
+  test('selects host sensors and respects hardware thresholds', () => {
+    const metrics = buildLinuxThermalMetrics(
+      [
+        {
+          chipName: 'coretemp',
+          deviceName: 'Intel Core i7-8700K',
+          label: 'Package id 0',
+          valueCelsius: 55,
+          warningCelsius: 82,
+          criticalCelsius: 100,
+        },
+        {
+          chipName: 'coretemp',
+          deviceName: 'Intel Core i7-8700K',
+          label: 'Core 0',
+          valueCelsius: 61,
+          warningCelsius: 82,
+          criticalCelsius: 100,
+        },
+        {
+          chipName: 'nvme',
+          deviceName: 'Samsung SSD 990 PRO',
+          label: 'Composite',
+          valueCelsius: 43,
+          warningCelsius: 70,
+          criticalCelsius: 85,
+        },
+        ...parseNvidiaSmiOutput('NVIDIA GeForce GTX 1080, 49'),
+      ],
+      '2026-09-14T00:00:00.000Z'
+    );
+
+    expect(metrics.sensors.map((sensor) => sensor.id)).toEqual([
+      'cpu-package',
+      'cpu-core-max',
+      'gpu-core',
+      'nvme',
+    ]);
+    expect(metrics.sensors[0]).toMatchObject({ warningCelsius: 82, criticalCelsius: 100 });
+    expect(metrics.hottestCelsius).toBe(61);
+    expect(metrics.source).toBe('Linux hwmon / NVIDIA NVML');
+  });
+
+  test('keeps observed extrema while accepting new current readings', () => {
+    const first = buildLinuxThermalMetrics([
+      {
+        chipName: 'nvidia',
+        deviceName: 'GPU',
+        label: 'GPU',
+        valueCelsius: 84,
+      },
+    ]);
+    const next = buildLinuxThermalMetrics([
+      {
+        chipName: 'nvidia',
+        deviceName: 'GPU',
+        label: 'GPU',
+        valueCelsius: 48,
+      },
+    ]);
+
+    const merged = mergeThermalExtrema(first, next);
+    expect(merged.sensors[0]).toMatchObject({
+      valueCelsius: 48,
+      minimumCelsius: 48,
+      maximumCelsius: 84,
+      status: 'healthy',
+      peakStatus: 'attention',
+    });
+    expect(merged.status).toBe('healthy');
+    expect(merged.peakStatus).toBe('attention');
   });
 });

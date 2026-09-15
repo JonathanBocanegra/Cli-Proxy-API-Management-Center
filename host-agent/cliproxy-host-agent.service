@@ -1,5 +1,5 @@
 [Unit]
-Description=CLI Proxy WSL host telemetry agent
+Description=CLI Proxy host telemetry agent
 Wants=network-online.target
 After=network-online.target cliproxyapi.service
 

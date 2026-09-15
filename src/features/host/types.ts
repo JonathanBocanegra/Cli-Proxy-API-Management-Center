@@ -7,7 +7,7 @@ export type HostThermalStatus = HostHealthStatus | 'unavailable';
 
 export interface HostTemperatureSensor {
   id: string;
-  component: 'cpu' | 'gpu' | 'mainboard';
+  component: 'cpu' | 'gpu' | 'storage' | 'mainboard';
   deviceName: string;
   valueCelsius: number;
   minimumCelsius: number;

@@ -1,10 +1,10 @@
-# WSL host agent
+# Linux and WSL host agent
 
 The Host Monitor page reads live Linux and WSL metrics from a small, read-only companion service.
-It samples `/proc`, `/sys`, filesystem statistics, and core service states. On WSL it also uses a
-fixed, embedded PowerShell query to read CPU, GPU, hotspot, and motherboard temperatures from the
-local Corsair iCUE/CPUID sensor pipe. Browser input can never become a shell command, and the agent
-does not mutate the host.
+It samples `/proc`, `/sys`, filesystem statistics, and core service states. On native Linux it reads
+CPU and storage temperatures from hwmon and NVIDIA GPU temperature through `nvidia-smi`. On WSL it
+falls back to a fixed, embedded PowerShell query for the local Corsair iCUE/CPUID sensor pipe.
+Browser input can never become a shell command, and the agent does not mutate the host.
 
 The agent listens on `127.0.0.1:8320` by default and protects telemetry with the same bearer key as
 CLI Proxy API. Its default key file is `~/.config/cliproxyapi/management-key`.
@@ -43,6 +43,7 @@ The service accepts these optional environment variables:
 Keep the bind address on loopback when using the supplied Tailscale route. The unauthenticated
 `/healthz` endpoint only returns a static status; `/v1/snapshot` always requires the bearer key.
 
-Temperature sampling requires Corsair iCUE and `CorsairCpuIdService` to be running on Windows. The
-agent refreshes these sensors every ten seconds and marks the last reading stale if the Windows
-source becomes unavailable.
+Temperature sampling uses the kernel's hwmon interfaces and, when present, `nvidia-smi`. Under WSL,
+the fallback requires Corsair iCUE and `CorsairCpuIdService` to be running on Windows. The agent
+refreshes sensors every ten seconds, tracks observed extrema for its lifetime, and marks the last
+reading stale if its source becomes unavailable.

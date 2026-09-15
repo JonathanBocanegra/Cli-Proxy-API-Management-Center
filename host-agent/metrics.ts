@@ -17,7 +17,9 @@ import type {
   HostSnapshot,
   HostStorageMount,
 } from '../src/features/host/types';
-import { readWindowsThermals, unavailableThermalMetrics } from './windowsThermals';
+import { readLinuxThermals } from './linuxThermals';
+import { mergeThermalExtrema, unavailableThermalMetrics } from './thermalMetrics';
+import { readWindowsThermals } from './windowsThermals';
 
 const execFileAsync = promisify(execFile);
 const KIBIBYTE = 1024;
@@ -527,9 +529,12 @@ export class HostSampler {
     }
     if (sampleAt - this.thermalAt >= THERMAL_CACHE_MS) {
       try {
-        const nextThermal = await readWindowsThermals();
+        let nextThermal = await readLinuxThermals();
+        if (!nextThermal.available && this.staticInfo.isWsl) {
+          nextThermal = await readWindowsThermals();
+        }
         this.thermal = nextThermal.available
-          ? nextThermal
+          ? mergeThermalExtrema(this.thermal, nextThermal)
           : this.thermal.available
             ? { ...this.thermal, stale: true }
             : nextThermal;
@@ -557,8 +562,8 @@ export class HostSampler {
     );
     const storage = (
       await Promise.all([
-        readStorageMount('/', 'WSL filesystem'),
-        readStorageMount('/mnt/c', 'Windows C:'),
+        readStorageMount('/', this.staticInfo.isWsl ? 'WSL filesystem' : 'System filesystem'),
+        this.staticInfo.isWsl ? readStorageMount('/mnt/c', 'Windows C:') : null,
       ])
     ).filter((mount): mount is HostStorageMount => mount !== null);
     const health = classifyHostHealth({

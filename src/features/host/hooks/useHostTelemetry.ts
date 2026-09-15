@@ -4,7 +4,7 @@ import { fetchHostSnapshot } from '@/services/api/host';
 import { useAuthStore } from '@/stores';
 import type { HostSnapshot } from '../types';
 
-const POLL_INTERVAL_MS = 2_000;
+export const HOST_TELEMETRY_POLL_INTERVAL_MS = 2_000;
 const HISTORY_LIMIT = 48;
 
 export interface HostHistoryPoint {
@@ -74,7 +74,7 @@ export function useHostTelemetry() {
     };
   }, [refresh]);
 
-  useInterval(() => void refresh(), connected ? POLL_INTERVAL_MS : null);
+  useInterval(() => void refresh(), connected ? HOST_TELEMETRY_POLL_INTERVAL_MS : null);
 
   return { snapshot, history, loading, refreshing, error, refresh };
 }

@@ -1,10 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type {
-  HostHealthStatus,
-  HostTemperatureSensor,
-  HostThermalMetrics,
-} from '../src/features/host/types';
+import type { HostTemperatureSensor, HostThermalMetrics } from '../src/features/host/types';
+import { createTemperatureSensor, thermalMetricsFromSensors } from './thermalMetrics';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_POWERSHELL = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
@@ -99,8 +96,6 @@ export interface RawCorsairTemperature {
   maximumCelsius: number;
 }
 
-const round = (value: number): number => Math.round(value * 10) / 10;
-
 const validTemperature = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= -20 && value <= 150;
 
@@ -121,38 +116,23 @@ export function parseCorsairThermalOutput(output: string): RawCorsairTemperature
   });
 }
 
-export function temperatureStatus(
-  valueCelsius: number,
-  warningCelsius: number,
-  criticalCelsius: number
-): HostHealthStatus {
-  if (valueCelsius >= criticalCelsius) return 'critical';
-  if (valueCelsius >= warningCelsius) return 'attention';
-  return 'healthy';
-}
-
 function toSensor(
   id: string,
-  component: HostTemperatureSensor['component'],
+  component: 'cpu' | 'gpu' | 'mainboard',
   reading: RawCorsairTemperature,
   warningCelsius: number,
   criticalCelsius: number
-): HostTemperatureSensor {
-  const valueCelsius = round(reading.valueCelsius);
-  const minimumCelsius = round(reading.minimumCelsius);
-  const maximumCelsius = round(reading.maximumCelsius);
-  return {
+) {
+  return createTemperatureSensor({
     id,
     component,
     deviceName: reading.deviceName,
-    valueCelsius,
-    minimumCelsius,
-    maximumCelsius,
+    valueCelsius: reading.valueCelsius,
+    minimumCelsius: reading.minimumCelsius,
+    maximumCelsius: reading.maximumCelsius,
     warningCelsius,
     criticalCelsius,
-    status: temperatureStatus(valueCelsius, warningCelsius, criticalCelsius),
-    peakStatus: temperatureStatus(maximumCelsius, warningCelsius, criticalCelsius),
-  };
+  });
 }
 
 const hottest = (readings: RawCorsairTemperature[]): RawCorsairTemperature | undefined =>
@@ -208,47 +188,8 @@ export function buildThermalMetrics(
   if (gpuHotspot) sensors.push(toSensor('gpu-hotspot', 'gpu', gpuHotspot, 90, 105));
   if (mainboard) sensors.push(toSensor('mainboard', 'mainboard', mainboard, 70, 85));
 
-  const status = sensors.some((sensor) => sensor.status === 'critical')
-    ? 'critical'
-    : sensors.some((sensor) => sensor.status === 'attention')
-      ? 'attention'
-      : sensors.length > 0
-        ? 'healthy'
-        : 'unavailable';
-  const peakStatus = sensors.some((sensor) => sensor.peakStatus === 'critical')
-    ? 'critical'
-    : sensors.some((sensor) => sensor.peakStatus === 'attention')
-      ? 'attention'
-      : sensors.length > 0
-        ? 'healthy'
-        : 'unavailable';
-
-  return {
-    available: sensors.length > 0,
-    stale: false,
-    sampledAt: sensors.length > 0 ? sampledAt : null,
-    source: sensors.length > 0 ? 'Corsair iCUE / CPUID' : null,
-    status,
-    peakStatus,
-    hottestCelsius:
-      sensors.length > 0 ? Math.max(...sensors.map((sensor) => sensor.valueCelsius)) : null,
-    peakCelsius:
-      sensors.length > 0 ? Math.max(...sensors.map((sensor) => sensor.maximumCelsius)) : null,
-    sensors,
-  };
+  return thermalMetricsFromSensors(sensors, 'Corsair iCUE / CPUID', sampledAt);
 }
-
-export const unavailableThermalMetrics = (): HostThermalMetrics => ({
-  available: false,
-  stale: false,
-  sampledAt: null,
-  source: null,
-  status: 'unavailable',
-  peakStatus: 'unavailable',
-  hottestCelsius: null,
-  peakCelsius: null,
-  sensors: [],
-});
 
 export async function readWindowsThermals(): Promise<HostThermalMetrics> {
   const powershell = process.env.HOST_AGENT_POWERSHELL || DEFAULT_POWERSHELL;
